@@ -1,0 +1,9 @@
+/build
+/PictSure.egg-info
+/CIFAR
+/data
+*.pth
+**.DS_Store
+*.pyc
+*.bkp
+*.pt
