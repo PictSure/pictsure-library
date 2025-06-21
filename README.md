@@ -77,6 +77,19 @@ This notebook demonstrates:
 - Making predictions
 - Visualizing results
 
+## Citation
+
+If you use this work, please cite it using the following BibTeX entry:
+
+```bibtex
+@article{schiesser2025pictsure,
+  title={PictSure: Pretraining Embeddings Matters for In-Context Learning Image Classifiers},
+  author={Schiesser, Lukas and Wolff, Cornelius and Haas, Sophie and Pukrop, Simon},
+  journal={arXiv preprint arXiv:2506.14842},
+  year={2025}
+}
+```
+
 ## License
 This project is open-source under the MIT License.
 
