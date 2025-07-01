@@ -11,10 +11,14 @@ from torchvision import models
 
 from .model_embeddings import ResNetWrapper, VitNetWrapper, load_encoder
 from .config import PRETRAINED
+from huggingface_hub import PyTorchModelHubMixin
 
 from PIL import Image
 
-class PictSure(nn.Module):
+class PictSure(
+    nn.Module,
+    PyTorchModelHubMixin
+    ):
     def __init__(self, embedding, num_classes=10, pretrained=False, nheads=8, nlayer=4, device="cpu"):
         super(PictSure, self).__init__()
         self.device = device

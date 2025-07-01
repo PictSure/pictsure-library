@@ -11,7 +11,8 @@ setup(
         'Pillow',  # Version not specified as it's a dependency of torchvision
         'click>=8.1.7',
         'tqdm>=4.66.4',
-        'requests>=2.32.3'
+        'requests>=2.32.3',
+        'huggingface-hub>=0.33.1'
     ],
     entry_points={
         'console_scripts': [
