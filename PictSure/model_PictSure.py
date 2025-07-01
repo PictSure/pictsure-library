@@ -10,7 +10,6 @@ import torch.nn.functional as F
 from torchvision import models
 
 from .model_embeddings import ResNetWrapper, VitNetWrapper, load_encoder
-from .config import PRETRAINED
 from huggingface_hub import PyTorchModelHubMixin
 
 from PIL import Image
@@ -19,59 +18,47 @@ class PictSure(
     nn.Module,
     PyTorchModelHubMixin
     ):
-    def __init__(self, embedding, num_classes=10, pretrained=False, nheads=8, nlayer=4, device="cpu"):
+    def __init__(self, embedding, num_classes=10, nheads=8, nlayer=4):
         super(PictSure, self).__init__()
-        self.device = device
         if isinstance(embedding, nn.Module):
             embedding_layer = embedding
             if not hasattr(embedding_layer, 'latent_dim'):
                 raise ValueError("Custom embedding module must have a 'latent_dim' attribute.")
         elif embedding == 'resnet':
-            embedding_layer = load_encoder(device)
+            embedding_layer = load_encoder()
         elif embedding == 'vit':
-            embedding_layer = VitNetWrapper(path=None, device=device, num_classes=1000)
+            embedding_layer = VitNetWrapper(path=None, num_classes=1000)
         else:
             raise ValueError("Unsupported embedding type. Use 'resnet' or 'vit' or custom nn.Modul.")
-        
-        if pretrained:
-            if embedding in PRETRAINED:
-                num_classes = PRETRAINED[embedding]['num_classes']
-                nheads = PRETRAINED[embedding]['nheads']
-                nlayer = PRETRAINED[embedding]['nlayer']
-            else:
-                raise ValueError(f"Pretrained weights for embedding '{embedding}' not found. Available options: {list(PRETRAINED.keys())}")
 
-        self.x_projection = nn.Linear(embedding_layer.latent_dim, 512).to(device)
-        self.y_projection = nn.Linear(num_classes, 512).to(device)
+        self.x_projection = nn.Linear(embedding_layer.latent_dim, 512)
+        self.y_projection = nn.Linear(num_classes, 512)
 
         self.transformer_layer = nn.TransformerEncoderLayer(
             d_model=1024, nhead=nheads, dim_feedforward=2048, norm_first=True
         )
-        self.transformer = nn.TransformerEncoder(self.transformer_layer, num_layers=nlayer).to(device)
-        self.fc = nn.Linear(1024, num_classes).to(device)
+        self.transformer = nn.TransformerEncoder(self.transformer_layer, num_layers=nlayer)
+        self.fc = nn.Linear(1024, num_classes)
         self._init_weights()
 
         self.num_classes = num_classes
 
-        self.embedding = embedding_layer.to(device)
+        self.embedding = embedding_layer
 
         self.context_images = None
         self.context_labels = None
 
-        if pretrained:
-            if embedding in PRETRAINED:
-                self.download_weights(embedding)
-                self.eval()
-            else:
-                raise ValueError(f"Pretrained weights for embedding '{embedding}' not found. Available options: {list(PRETRAINED.keys())}")
-        else:
-            for param in self.embedding.parameters():
-                param.requires_grad = True
-
-            self.x_projection.requires_grad = True
-            self.y_projection.requires_grad = True
-            self.transformer.requires_grad = True
-            self.fc.requires_grad = True
+    def to(self, device):
+        self.embedding = self.embedding.to(device)
+        self.x_projection = self.x_projection.to(device)
+        self.y_projection = self.y_projection.to(device)
+        self.transformer = self.transformer.to(device)
+        self.fc = self.fc.to(device)
+        return self
+    
+    @property
+    def device(self):
+        return self.embedding.device
 
     def _init_weights(self):
         # Loop through all modules in the model
@@ -81,59 +68,6 @@ class PictSure(
                     nn.init.xavier_uniform_(param)
             elif 'bias' in name:
                 nn.init.zeros_(param)  # Bias is initialized to zero
-
-    def download_weights(self, embedding):
-        """
-        Download the model weights from the specified path.
-        :param path: Path to the model weights file.
-        """
-        import requests
-        import os
-        from tqdm import tqdm
-        import time
-        if embedding not in PRETRAINED:
-            raise ValueError(f"Embedding type '{embedding}' not supported. Available options: {list(PRETRAINED.keys())}")
-        url = PRETRAINED[embedding]['url']
-        local_folder = f"weights/{PRETRAINED[embedding]['name']}"
-
-        complete_folder = os.path.dirname(os.path.abspath(__file__))
-        local_folder = os.path.join(complete_folder, local_folder)
-
-        if not os.path.exists(local_folder):
-            os.makedirs(local_folder)
-        weights_path = os.path.join(local_folder, 'weights.pt')
-        if os.path.exists(weights_path):
-            print(f"Weights already downloaded. Skipping download.")
-        else:
-            try:
-                response = requests.get(url, stream=True)
-                response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
-                total_size = int(response.headers.get('content-length', 0))
-                block_size = 1024 * 1024  # 1 MB
-                with open(weights_path, 'wb') as file:
-                    with tqdm(total=total_size, unit='B', unit_scale=True, unit_divisor=1024, desc="Downloading") as pbar:
-                        for data in response.iter_content(block_size):
-                            file.write(data)
-                            pbar.update(len(data))
-                print("\nDownload complete.")
-            except KeyboardInterrupt:
-                print("\nDownload interrupted by user.")
-                if os.path.exists(weights_path):
-                    os.remove(weights_path)
-                if os.path.exists(local_folder):
-                    os.rmdir(local_folder)
-                raise
-            except Exception as e:
-                print(f"\nDownload failed: {e}")
-                if os.path.exists(weights_path):
-                    os.remove(weights_path)
-                if os.path.exists(local_folder):
-                    os.rmdir(local_folder)
-                raise
-        # Load the weights into the model
-        checkpoint = torch.load(weights_path, map_location=self.device)
-        self.load_state_dict(checkpoint)
-        print("Weights successfully loaded into the model.")
 
     def normalize_samples(self, x, resize=(224, 224)):
         """
@@ -235,9 +169,9 @@ class PictSure(
         x_pred = self.normalize_samples(x_pred, resize=(224, 224))  # Normalize prediction images
 
         # Move to device
-        x_train = x_train.to(self.device)
-        y_train = y_train.to(self.device)
-        x_pred = x_pred.to(self.device)
+        x_train = x_train.to(self.embedding.device)
+        y_train = y_train.to(self.embedding.device)
+        x_pred = x_pred.to(self.embedding.device)
 
         output = self.forward(x_train, y_train, x_pred, embedd=True)
 
