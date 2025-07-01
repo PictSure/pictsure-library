@@ -32,15 +32,10 @@ pip install .
 from PictSure import PictSure
 import torch
 
-# Initialize the model (using ViT as an example)
-model = PictSure(
-    embedding='vit',  # or 'resnet'
-    pretrained=True,  # use pretrained weights
-    device='cuda'     # or 'cpu'
-)
+DEVICE = "cpu" # or cuda, mps
 
-# you can also pull our pre-trained models from Huggingface
 model = PictSure.from_pretrained("pictsure/pictsure-vit")
+model = model.to(DEVICE)
 
 # Set your reference images and labels
 model.set_context_images(reference_images, reference_labels)
@@ -48,25 +43,6 @@ model.set_context_images(reference_images, reference_labels)
 # Make predictions on new images
 predictions = model.predict(new_images)
 ```
-
-## Command Line Interface
-PictSure comes with a command-line interface to manage models and weights:
-
-### List Available Models
-```bash
-pictsure list-models
-```
-This command shows all available models, their status (downloaded/not downloaded), and detailed information about each model.
-
-### Remove Model Weights
-```bash
-pictsure remove <model_name> [--force]
-```
-Remove the weights of a specific model. Available models are:
-- `ViTPreAll`: ViT-based model
-- `ResPreAll`: ResNet-based model
-
-Use the `--force` or `-f` flag to skip the confirmation prompt.
 
 ## Examples
 For a complete working example, check out the Jupyter notebook in the Examples directory:
