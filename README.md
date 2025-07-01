@@ -39,6 +39,9 @@ model = PictSure(
     device='cuda'     # or 'cpu'
 )
 
+# you can also pull our pre-trained models from Huggingface
+model = PictSure.from_pretrained("pictsure/pictsure-vit")
+
 # Set your reference images and labels
 model.set_context_images(reference_images, reference_labels)
 
