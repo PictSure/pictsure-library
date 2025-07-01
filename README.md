@@ -14,17 +14,8 @@ PictSure is a deep learning library designed for **in-context learning** using i
 - **Easy-to-use CLI**: Manage models and weights through a simple command-line interface.
 
 ## Installation
-1. Clone this repository
 ```bash
-git clone https://git.ni.dfki.de/pictsure/pictsure-library
-```
-2. Navigate into the folder
-```bash
-cd pictsure-library
-```
-3. Install the pip package
-```bash
-pip install .
+pip install PictSure
 ```
 
 ## Quick Start
