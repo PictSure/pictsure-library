@@ -53,14 +53,8 @@ def pick_test_image(path, label_map, chosen):
         img = Image.open(img_path).convert("RGB")
         return img, label
 
-# Load encoder and duplicate it for PictSure
-print(f"Using device: {DEVICE}")
-
-pictsure_model = PictSure(
-    embedding="vit",
-    device=DEVICE,
-    pretrained=True
-)
+# or pull our pre-trained models from HuggingFace
+pictsure_model = PictSure.from_pretrained("pictsure/pictsure-vit").to(DEVICE)
 
 results = []
 for i in range(200):

@@ -7,3 +7,4 @@
 *.pyc
 *.bkp
 *.pt
+/PictSure/PictSure.egg-info
