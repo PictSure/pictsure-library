@@ -1,5 +1,7 @@
 # PictSure: In-Context Learning for Image Classification
 
+[![PyPI Downloads](https://static.pepy.tech/badge/pictsure/week)](https://pepy.tech/projects/pictsure)
+
 PictSure is a deep learning library designed for **in-context learning** using images and labels. It allows users to provide a set of labeled reference images and then predict labels for new images based on those references. This approach eliminates the need for traditional training, making it highly adaptable for various classification tasks.
 
 <p align="center">
