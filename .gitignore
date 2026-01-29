@@ -8,3 +8,7 @@
 *.bkp
 *.pt
 /PictSure/PictSure.egg-info
+**/Examples/data
+__pycache__/
+*.vscode
+.env
