@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PictSure"
-version = "0.2.1"
+version = "0.2.2"
 description = "A package for generalized image classification using In-Context-Learning with PyTorch."
 readme = "README.md"
 requires-python = ">=3.9"
