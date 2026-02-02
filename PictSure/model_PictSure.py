@@ -166,10 +166,6 @@ class PictSure(nn.Module, PyTorchModelHubMixin):
         # Class prototype embeddings for predict() method
         self._class_prototypes: Optional[torch.Tensor] = None
 
-        # Fresh DINOv2 for prototype-based predict() (lazy init)
-        self._fresh_dinov2 = None
-        self._fresh_processor = None
-
         # Move to device
         self.to(self._device)
 
@@ -208,10 +204,6 @@ class PictSure(nn.Module, PyTorchModelHubMixin):
             self._organized_labels = self._organized_labels.to(device)
         if self._class_prototypes is not None:
             self._class_prototypes = self._class_prototypes.to(device)
-        
-        # Move fresh DINOv2 model if loaded
-        if self._fresh_dinov2 is not None:
-            self._fresh_dinov2 = self._fresh_dinov2.to(device)
         
         return self
 
@@ -551,44 +543,28 @@ class PictSure(nn.Module, PyTorchModelHubMixin):
         # Compute class prototype embeddings for predict() method (using raw images)
         self._compute_class_prototypes()
 
-    def _get_fresh_dinov2(self):
-        """Get or lazily initialize a fresh pretrained DINOv2 model for prototype matching."""
-        if self._fresh_dinov2 is None:
-            from transformers import AutoImageProcessor, AutoModel
-            model_name = "facebook/dinov2-base"
-            self._fresh_processor = AutoImageProcessor.from_pretrained(model_name, use_fast=True)
-            self._fresh_dinov2 = AutoModel.from_pretrained(model_name).to(self._device)
-            self._fresh_dinov2.eval()
-        return self._fresh_dinov2, self._fresh_processor
-
     def _compute_class_prototypes(self) -> None:
-        """Compute class prototype embeddings from context images using raw (unnormalized) images."""
-        if self._organized_support_raw is None:
+        """Compute class prototype embeddings from context images using the active encoder."""
+        if self._organized_support is None:
             return
-
-        # Use fresh DINOv2 for prototype matching (provides better embeddings)
-        dinov2, processor = self._get_fresh_dinov2()
 
         N = self._num_classes_in_context
         K = self._shots_per_class
 
-        # Convert raw (unnormalized) context images to PIL for the processor
-        from torchvision.transforms.functional import to_pil_image
-        pil_images = [to_pil_image(img.cpu()) for img in self._organized_support_raw]
+        if N == 0 or K == 0:
+            return
 
-        # Get embeddings using HuggingFace processor
-        inputs = processor(images=pil_images, return_tensors='pt').to(self._device)
+        support = self._organized_support
+        if support.ndim == 4:
+            support = support.unsqueeze(0)
+
         with torch.no_grad():
-            outputs = dinov2(**inputs)
-            embeddings = outputs.last_hidden_state[:, 0, :]  # CLS token, (N*K, 768)
+            support_embeddings = self.embedding(support)
 
-        # Compute class prototypes (mean embedding per class)
-        prototypes = []
-        for i in range(N):
-            class_embs = embeddings[i * K:(i + 1) * K]
-            prototype = class_embs.mean(dim=0)
-            prototypes.append(prototype)
-        self._class_prototypes = torch.stack(prototypes)  # (N, 768)
+        support_embeddings = support_embeddings.view(-1, support_embeddings.size(-1))
+        support_embeddings = support_embeddings[: N * K]
+        support_embeddings = support_embeddings.view(N, K, -1)
+        self._class_prototypes = support_embeddings.mean(dim=1)
 
     def predict(
         self,
@@ -626,12 +602,24 @@ class PictSure(nn.Module, PyTorchModelHubMixin):
         else:
             raise TypeError(f"Unsupported image type: {type(image)}")
 
-        # Get query embedding using fresh DINOv2
-        dinov2, processor = self._get_fresh_dinov2()
-        inputs = processor(images=[pil_image], return_tensors='pt').to(self._device)
+        query_tensor = self._pil_list_to_tensor([pil_image]).to(self._device)
+        query_tensor = query_tensor.unsqueeze(0)
+        query_norm = normalize_samples(
+            query_tensor,
+            model_type=self.embedding_model,
+            resize=(224, 224),
+        )
+
+        # Ensure shape matches encoder expectation: (batch, num_images, 3, H, W)
+        if query_norm.ndim == 4:
+            query_norm = query_norm.unsqueeze(1)
+        elif query_norm.ndim == 3:
+            query_norm = query_norm.unsqueeze(0).unsqueeze(0)
+
         with torch.no_grad():
-            outputs = dinov2(**inputs)
-            query_emb = outputs.last_hidden_state[:, 0, :].squeeze(0)  # (768,)
+            query_embedded = self.embedding(query_norm)
+
+        query_emb = query_embedded.view(-1, query_embedded.size(-1))[0]
 
         # Compute cosine similarity to each class prototype
         similarities = F.cosine_similarity(
