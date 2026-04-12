@@ -5,7 +5,7 @@ This module provides the main PictSure class that can be used for
 few-shot image classification with various vision encoders.
 
 Supports:
-- ResNet18 (pretrained ImageNet)
+- ResNet variants (pretrained ImageNet)
 - Vision Transformer (ViT)
 - DINOv2 (self-supervised, various sizes)
 - CLIP (contrastive language-image pretraining)
@@ -88,7 +88,9 @@ class PictSure(nn.Module, PyTorchModelHubMixin):
         Initialize PictSure model.
 
         Args:
-            embedding: Encoder type ('resnet', 'vit', 'dinov2', 'clip') or custom nn.Module
+            embedding: Encoder type ('resnet', 'resnet18', 'resnet34', 'resnet50',
+                'resnet101', 'vit', 'dinov2', 'dinov2-small', 'dinov2-large',
+                'clip') or custom nn.Module
             num_classes: Maximum number of classes for classification
             nheads: Number of attention heads in transformer
             nlayer: Number of transformer layers
@@ -105,28 +107,21 @@ class PictSure(nn.Module, PyTorchModelHubMixin):
             if not hasattr(embedding_layer, 'latent_dim'):
                 raise ValueError("Custom embedding module must have a 'latent_dim' attribute.")
             self.embedding_model = "custom"
-        elif embedding == 'resnet':
-            embedding_layer = load_encoder(self._device)
-            self.embedding_model = "resnet"
-        elif embedding == 'vit':
-            embedding_layer = VitNetWrapper(path=None, num_classes=1000)
-            self.embedding_model = "vit"
-        elif embedding == 'dinov2':
-            embedding_layer = DINOV2Wrapper(device=self._device)
-            self.embedding_model = "dinov2"
-        elif embedding == 'dinov2-small':
-            embedding_layer = DINOV2Wrapper(device=self._device, model_name="facebook/dinov2-small")
-            self.embedding_model = "dinov2"
-        elif embedding == 'dinov2-large':
-            embedding_layer = DINOV2Wrapper(device=self._device, model_name="facebook/dinov2-large")
-            self.embedding_model = "dinov2"
-        elif embedding == 'clip':
-            embedding_layer = CLIPWrapper(device=self._device)
-            self.embedding_model = "clip"
+        elif isinstance(embedding, str):
+            embedding_key = embedding.lower()
+            embedding_layer = get_encoder(embedding_key, device=self._device)
+
+            if embedding_key.startswith("resnet"):
+                self.embedding_model = "resnet"
+            elif embedding_key.startswith("dinov2"):
+                self.embedding_model = "dinov2"
+            else:
+                self.embedding_model = embedding_key
         else:
             raise ValueError(
                 f"Unsupported embedding type: {embedding}. "
-                "Use 'resnet', 'vit', 'dinov2', 'clip' or custom nn.Module."
+                "Use 'resnet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', "
+                "'vit', 'dinov2', 'dinov2-small', 'dinov2-large', 'clip' or custom nn.Module."
             )
 
         # Build transformer layers
